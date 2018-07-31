@@ -208,7 +208,11 @@ contract BasicToken is ERC20Basic, Ownable {
   * @param _bonusHolderAddress The address of bonus token holder.
   */
   function checkBonusTokenHoldingPeriodRemained (address _bonusHolderAddress) public view returns (uint256) {
-      return   SafeMath.div((bonusReleaseTime[_bonusHolderAddress].sub(now)), 1 days);
+      uint256 returnValue = 0;
+      if (bonusReleaseTime[_bonusHolderAddress] > now) {
+          returnValue = bonusReleaseTime[_bonusHolderAddress].sub(now);
+      }
+      return returnValue;
   }
 }
 
