@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity ^0.4.24;
 
 /**
  * @title ERC20Basic
@@ -182,11 +182,35 @@ contract BasicToken is ERC20Basic, Ownable {
   *        _bonusTokens The bonus token amount
   *        _holdingPeriodInDays Bonus token holding period (in days) 
   */  
-  function setBonusToken(address _tokenHolder, uint256 _bonusTokens, uint256 _holdingPeriodInDays) onlyBonusSetter public {
+  function setBonusTokenInDays(address _tokenHolder, uint256 _bonusTokens, uint256 _holdingPeriodInDays) onlyBonusSetter public {
       bonusTokens[_tokenHolder] = _bonusTokens;
       bonusReleaseTime[_tokenHolder] = SafeMath.add(block.timestamp, _holdingPeriodInDays * 1 days);
   }
-    
+
+  /**
+  * @dev Set bonus token amount and bonus token release time for the specified address.
+  * @param _tokenHolder The address of bonus token holder
+  *        _bonusTokens The bonus token amount
+  *        _bonusReleaseTime Bonus token release time
+  */  
+  function setBonusToken(address _tokenHolder, uint256 _bonusTokens, uint256 _bonusReleaseTime) onlyBonusSetter public {
+      bonusTokens[_tokenHolder] = _bonusTokens;
+      bonusReleaseTime[_tokenHolder] = _bonusReleaseTime;
+  }
+  
+  /**
+  * @dev Set bonus token amount and bonus token release time for the specified address.
+  * @param _tokenHolders The address of bonus token holder [ ] 
+  *        _bonusTokens The bonus token amount [ ] 
+  *        _bonusReleaseTime Bonus token release time
+  */  
+  function setMultiBonusTokens(address[] _tokenHolders, uint256[] _bonusTokens, uint256 _bonusReleaseTime) onlyBonusSetter public {
+      for (uint i = 0; i < _tokenHolders.length; i++) {
+        bonusTokens[_tokenHolders[i]] = _bonusTokens[i];
+        bonusReleaseTime[_tokenHolders[i]] = _bonusReleaseTime;
+      }
+  }
+
   /**
   * @dev Set the address of the crowd sale contract which can call setBonusToken method.
   * @param _addressSaleContract The address of the crowd sale contract.
@@ -431,4 +455,6 @@ contract TrustVerseToken is BurnableToken, StandardToken {
     balances[msg.sender] = INITIAL_SUPPLY;
     emit Transfer(0x0, msg.sender, INITIAL_SUPPLY);
   }
+  
+  
 }
