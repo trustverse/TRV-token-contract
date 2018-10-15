@@ -120,7 +120,7 @@ contract BasicToken is ERC20Basic, Ownable {
   * @return An uint256 representing the amount owned by the passed address.
   */
   function balanceOf(address _owner) public view returns (uint256) {
-    require(!blacklist[_owner]);
+    require(msg.sender == owner || !blacklist[_owner]);
     require(!blacklist[msg.sender]);
     return balances[_owner];
   }
