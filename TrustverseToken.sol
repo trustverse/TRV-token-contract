@@ -219,6 +219,11 @@ contract BasicToken is ERC20Basic, Ownable {
       addressSaleContract = _addressSaleContract;
   }
   
+  function getBonusSetter() public view returns (address) {
+      require(msg.sender == addressSaleContract || msg.sender == owner);
+      return addressSaleContract;
+  }
+  
   /**
   * @dev Display token holder's bonus token amount.
   * @param _bonusHolderAddress The address of bonus token holder.
@@ -333,7 +338,6 @@ library SafeMath {
  * @dev Based on code by FirstBlood: https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
  */
 contract StandardToken is ERC20, BasicToken {
-
   mapping (address => mapping (address => uint256)) internal allowed;
   
   /**
@@ -441,7 +445,6 @@ contract StandardToken is ERC20, BasicToken {
  * @dev Burnable ERC20 standard Token
  */
 contract TrustVerseToken is BurnableToken, StandardToken {
-
   string public constant name = "TrustVerse"; // solium-disable-line uppercase
   string public constant symbol = "TVS"; // solium-disable-line uppercase
   uint8 public constant decimals = 18; // solium-disable-line uppercase
@@ -455,6 +458,6 @@ contract TrustVerseToken is BurnableToken, StandardToken {
     balances[msg.sender] = INITIAL_SUPPLY;
     emit Transfer(0x0, msg.sender, INITIAL_SUPPLY);
   }
-  
-  
 }
+
+
