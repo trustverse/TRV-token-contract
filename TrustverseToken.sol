@@ -461,3 +461,344 @@ contract TrustVerseToken is BurnableToken, StandardToken {
 }
 
 
+contract PublicStageTV is Ownable {
+    TrustVerseToken private TvsToken;
+    address private retiroEthAddress;
+    bool private isEnded = false;
+    uint256 private minEth = 4 ether;
+    uint256 private maxEth = 2000 ether;
+    uint256 private hardCap = 152000 ether;
+    uint256 private startTime = 1540310400; //2018/10/23 16:00 UTC
+    uint256 private endTime = 1542643200; //2018/11/19 16:00 UTC
+    uint256 private tokenLockReleaseTime = 1551369600;  //2019/02/28 16:00 UTC
+    uint256 private constant tPrice = 2000;
+    uint256 private weiRaised = 0;
+    uint256 private weiWithdrawed = 0;
+    address[] private participants;
+    uint256[5] private publicRoundDate;
+    uint256[5] private publicRoundRate;
+    mapping(address => bool) private iskycpassed;
+    mapping(address => bool) private isTvsReceived;
+    mapping(address => uint256) private weiAmount;
+    mapping(address => uint256) private tAmount;
+    mapping(address => uint256) private bonusAmount;
+    
+    address private TvsOperator;
+
+    event TvsIcoParticipationLog(address indexed participant, uint256 indexed EthAmount, uint256 TvsAmount, uint256 bonusAmount);
+    event setKycResultLog(address indexed kycUser, bool indexed kycResult);
+    event Transfered(address indexed retiroEthAddress, uint256 weiRaised);
+
+    constructor() public {
+        for (uint i = 0; i < 5; i++) {
+            publicRoundDate[i] = 0;
+            publicRoundRate[i] = 0;
+        }
+        publicRoundDate[0] = 1541088000; //2018/11/01 16:00
+        publicRoundRate[0] = 10;
+        publicRoundDate[1] = 1541865600; //2018/11/10 16:00
+        publicRoundRate[1] = 5;
+        retiroEthAddress = msg.sender;
+    }
+    
+    /*
+    * Getter / Setter 
+    */
+    function getIsEnded() public view returns (bool) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return isEnded;
+    }
+    
+    function setMiniEth(uint _minEth) public onlyOwner {
+        minEth = SafeMath.mul(_minEth, 1 ether);
+    }
+    
+    function getMinEth() public view returns (uint) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return SafeMath.div(minEth, 1 ether);
+    }
+
+    function setMaxiEth(uint _minEth) public onlyOwner {
+        minEth = SafeMath.mul(_minEth, 1 ether);
+    }
+    
+    function getMaxEth() public view returns (uint) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return SafeMath.div(maxEth, 1 ether);
+    }
+    
+    function setRoundDate(uint _index, uint256 _date) public onlyOwner {
+        require(_index < 5);
+        publicRoundDate[_index] = _date;
+    }
+    
+    function getRoundDate(uint _index) public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        require(_index < 5);
+        return publicRoundDate[_index];
+    }
+    
+    function setRoundRate(uint _index, uint256 _date) public onlyOwner {
+        require(_index < 5);
+        publicRoundRate[_index] = _date;
+    }
+    
+    function getRoundRate(uint _index) public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        require(_index < 5);
+        return publicRoundRate[_index];
+    }
+    
+    function setStartTime(uint256 _startTime) public onlyOwner {
+        startTime = _startTime;
+    }
+     
+    function setEndTime(uint256 _endTime) public onlyOwner {
+        endTime = _endTime;
+    }
+    
+    function getStartTime() public view onlyOwner returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return startTime;
+    }
+    
+    function getEndTime() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return endTime;
+    }
+    
+    function getParticipatedETH(address _addr) public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator) || (msg.sender == _addr));
+        return SafeMath.div(weiAmount[_addr], 1 ether);
+    }
+    
+    function getTvsAmount(address _addr) public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator) || (msg.sender == _addr));
+        return tAmount[_addr];
+    }
+    
+    function getBonusAmount(address _addr) public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator) || (msg.sender == _addr));
+        return bonusAmount[_addr];
+    }
+    
+    function endSale() public onlyOwner {
+        isEnded = true;
+    }
+    
+    function startSale() public onlyOwner {
+        isEnded = false;
+    }
+    
+    function setKycResult(address[] _kycList, bool _kycResult) public onlyOwner {
+        require(_kycResult == true || _kycResult == false);
+        for (uint256 i = 0; i < _kycList.length; i++) {
+            iskycpassed[_kycList[i]] = _kycResult;
+            emit setKycResultLog(_kycList[i], _kycResult);
+        }
+    }
+    
+    function getKycResult(address _addr) public view returns (bool) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator) || (msg.sender == _addr));
+        return iskycpassed[_addr];
+    }
+    
+    function setTokenContractAddress(TrustVerseToken _tokenAddr) public onlyOwner {
+        TvsToken = _tokenAddr;
+    }
+    
+    function getTokenContractAddress() public view returns (address) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return TvsToken;
+    }
+    
+    function setRetiroEthAddress(address _ethRetiroAddr) public onlyOwner {
+        retiroEthAddress = _ethRetiroAddr;
+    }
+    
+    function getRetiroEthAddress() public view returns (address) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return retiroEthAddress;
+    }
+    
+    function checkEthInInteger(uint256 _pValue) private pure returns (bool) {
+        uint256 ethInteger = SafeMath.div(_pValue, 1 ether);
+        if (SafeMath.sub(_pValue, SafeMath.mul(ethInteger, 1 ether)) == 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    function getNumberOfParticipants() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return participants.length;
+    }
+    
+    function getWeiWithdrawaed() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return weiWithdrawed;
+    }
+    
+    function setTvsOperator(address _oprAddr) public onlyOwner {
+        require(_oprAddr != address(0));
+        TvsOperator = _oprAddr;
+    }
+    
+    function getTvsOperator() public view returns (address) {
+        require(msg.sender == owner || msg.sender == TvsOperator);
+        return TvsOperator;
+    }
+    
+    function safeEthWithdrawal() public onlyOwner {
+        require(this.balance > 0);
+        require(retiroEthAddress != address(0));
+        uint256 withdrawalAmount = this.balance;
+        if (retiroEthAddress.send(this.balance)) {
+            weiWithdrawed = SafeMath.add(weiWithdrawed, withdrawalAmount);
+            emit Transfered(retiroEthAddress, withdrawalAmount);
+        }
+    }
+    
+    function safeTvsDistribute() public onlyOwner {
+        require(isEnded);
+        for (uint256 i = 0; i < participants.length; i++) {
+            if (iskycpassed[participants[i]] == true && isTvsReceived[participants[i]] == false) {
+                if (participants[i] != address(0)) {
+                    if(TvsToken.transfer(participants[i], SafeMath.add(tAmount[participants[i]], bonusAmount[participants[i]]))) {
+                        isTvsReceived[participants[i]] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    function safeTvsDistributeByIndex(uint256 _startIndex, uint256 _endIndex) public onlyOwner {
+        require(isEnded);
+        require(_startIndex <= _endIndex);
+        require(_endIndex <= participants.length);
+        for (uint256 i = _startIndex; i < _endIndex; i++) {
+            if (iskycpassed[participants[i]] == true && isTvsReceived[participants[i]] == false) {
+                if (participants[i] != address(0)) {
+                    if(TvsToken.transfer(participants[i], SafeMath.add(tAmount[participants[i]], bonusAmount[participants[i]]))) {
+                        isTvsReceived[participants[i]] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    function setHardCap(uint256 _newHardCap) public onlyOwner {
+        hardCap = _newHardCap;
+    }
+
+    function getHardCap() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return hardCap;
+    }
+
+    function getCurrentTime() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return now;
+    }
+    
+    function getEthRaised() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return SafeMath.div(weiRaised, 1 ether);
+    }
+    
+    function getTotalTvsToDistribute() public view returns (uint256) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        uint256 totalTvsToDistribute = 0;
+        for (uint256 i = 0; i < participants.length; i++) {
+            totalTvsToDistribute = SafeMath.add(tAmount[participants[i]], totalTvsToDistribute);
+            totalTvsToDistribute = SafeMath.add(bonusAmount[participants[i]], totalTvsToDistribute);
+        }
+        return totalTvsToDistribute;
+    }
+    
+    function getIsTvsReceived(address _rcvrAddr) public view returns (bool) {
+        require((msg.sender == owner) || (msg.sender == TvsOperator));
+        return isTvsReceived[_rcvrAddr];
+    }
+    
+    function safeTvsWithdrawal() public onlyOwner {
+        uint256 remainingTvs = TvsToken.balanceOf(this);
+        if (remainingTvs > 0) {
+            TvsToken.transfer(owner, remainingTvs);
+        }
+    }
+    /*
+    * fallback function
+    */
+    function () external payable {
+        require(!isEnded);
+        require(msg.value != 0);
+        require(minEth <= msg.value);
+        require(msg.value <= maxEth);
+        require(startTime <= now);
+        require(now <= endTime);
+        require(TvsToken != address(0));
+        require(retiroEthAddress != address(0));
+        require(retiroEthAddress != msg.sender);
+        require(checkEthInInteger(msg.value));
+        require(TvsToken.getBonusSetter() != address(0));
+        
+        //If reaches hardcap or personal cap, do refund processing
+        uint256 weisToRefundPersonalCap = SafeMath.add(weiAmount[msg.sender], msg.value);
+        uint256 weisToRefundHardCap = SafeMath.add(weiRaised, msg.value);
+        uint256 comittedEths = msg.value;
+        
+        if (weisToRefundPersonalCap > maxEth) {
+            weisToRefundPersonalCap = SafeMath.sub(weisToRefundPersonalCap, maxEth);
+        } else {
+            weisToRefundPersonalCap = 0;
+        }
+        
+        if (weisToRefundHardCap > hardCap) {
+            weisToRefundHardCap = SafeMath.sub(weisToRefundHardCap, hardCap);
+        } else {
+            weisToRefundHardCap = 0;
+        }
+        
+        if ((weisToRefundHardCap > 0) || (weisToRefundPersonalCap > 0)) {
+            if (weisToRefundPersonalCap > weisToRefundHardCap) {
+                comittedEths = SafeMath.sub(msg.value, weisToRefundPersonalCap);
+                msg.sender.transfer(weisToRefundPersonalCap);
+                //emit Transfered
+            } else {
+                comittedEths = SafeMath.sub(msg.value, weisToRefundHardCap);
+                msg.sender.transfer(weisToRefundHardCap);
+                //emit Transfered
+            }
+        }
+        
+        //add to participants list if first timer.
+        if (weiAmount[msg.sender] <= 0) {
+            participants.push(msg.sender);
+        }
+
+        weiAmount[msg.sender] = SafeMath.add(weiAmount[msg.sender], comittedEths);
+        tAmount[msg.sender] = SafeMath.add(tAmount[msg.sender], SafeMath.mul(comittedEths, tPrice));
+        for (uint i = 0; i < 5; i++) {
+            if (now < publicRoundDate[i]) {
+                bonusAmount[msg.sender] = SafeMath.add(bonusAmount[msg.sender], SafeMath.div(SafeMath.mul(SafeMath.mul(comittedEths, tPrice),publicRoundRate[i]),100));
+                i = 10;
+                break;
+            }
+        }
+        TvsToken.setBonusToken(msg.sender, bonusAmount[msg.sender], tokenLockReleaseTime); //set bonus token lock
+        weiRaised = SafeMath.add(weiRaised, comittedEths);
+        
+        // immediately withdrawal ETH
+        uint256 withdrawalAmount = this.balance;
+        if (retiroEthAddress.send(withdrawalAmount)) {
+            weiWithdrawed = SafeMath.add(weiWithdrawed, withdrawalAmount);
+            emit Transfered(retiroEthAddress, withdrawalAmount);
+        }
+    }
+    //emit TvsIcoParticipationLog(address indexed participant, uint256 indexed EthAmount, uint256 TvsAmount, uint256 bonusAmount);
+}
+
+
+
