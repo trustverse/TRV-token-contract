@@ -799,6 +799,3 @@ contract PublicStageTV is Ownable {
     }
     //emit TvsIcoParticipationLog(address indexed participant, uint256 indexed EthAmount, uint256 TvsAmount, uint256 bonusAmount);
 }
-
-
-
