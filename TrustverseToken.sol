@@ -72,6 +72,8 @@ contract BasicToken is ERC20Basic, Ownable {
   mapping(address => uint256) bonusReleaseTime;
   
   mapping(address => bool) internal blacklist;
+  address[] internal blacklistHistory;
+  
   bool public isTokenReleased = false;
   
   address addressSaleContract;
@@ -132,6 +134,7 @@ contract BasicToken is ERC20Basic, Ownable {
   function registerToBlacklist(address _badUserAddress) onlyOwner public {
       if (blacklist[_badUserAddress] != true) {
 	  	  blacklist[_badUserAddress] = true;
+          blacklistHistory.push(_badUserAddress);
 	  }
       emit BlacklistUpdated(_badUserAddress, blacklist[_badUserAddress]);   
   }
@@ -154,6 +157,10 @@ contract BasicToken is ERC20Basic, Ownable {
   */
   function checkBlacklist (address _address) onlyOwner public view returns (bool) {
       return blacklist[_address];
+  }
+
+  function getblacklistHistory() onlyOwner public view returns (address[]) {
+      return blacklistHistory;
   }
   
   /**
@@ -200,14 +207,21 @@ contract BasicToken is ERC20Basic, Ownable {
   
   /**
   * @dev Set bonus token amount and bonus token release time for the specified address.
-  * @param _tokenHolders The address of bonus token holder [ ] 
-  *        _bonusTokens The bonus token amount [ ] 
+  * @param _tokenHolders The address of bonus token holder ["0x...", "0x...", ...] 
+  *        _bonusTokens The bonus token amount [0,0, ...] 
   *        _bonusReleaseTime Bonus token release time
   */  
-  function setMultiBonusTokens(address[] _tokenHolders, uint256[] _bonusTokens, uint256 _bonusReleaseTime) onlyBonusSetter public {
+  function setBonusTokens(address[] _tokenHolders, uint256[] _bonusTokens, uint256 _bonusReleaseTime) onlyBonusSetter public {
       for (uint i = 0; i < _tokenHolders.length; i++) {
         bonusTokens[_tokenHolders[i]] = _bonusTokens[i];
         bonusReleaseTime[_tokenHolders[i]] = _bonusReleaseTime;
+      }
+  }
+
+  function setBonusTokensInDays(address[] _tokenHolders, uint256[] _bonusTokens, uint256 _holdingPeriodInDays) onlyBonusSetter public {
+      for (uint i = 0; i < _tokenHolders.length; i++) {
+        bonusTokens[_tokenHolders[i]] = _bonusTokens[i];
+        bonusReleaseTime[_tokenHolders[i]] = SafeMath.add(block.timestamp, _holdingPeriodInDays * 1 days);
       }
   }
 
@@ -446,10 +460,11 @@ contract StandardToken is ERC20, BasicToken {
  */
 contract TrustVerseToken is BurnableToken, StandardToken {
   string public constant name = "TrustVerse"; // solium-disable-line uppercase
-  string public constant symbol = "TVS"; // solium-disable-line uppercase
+  string public constant symbol = "TRV"; // solium-disable-line uppercase
   uint8 public constant decimals = 18; // solium-disable-line uppercase
   uint256 public constant INITIAL_SUPPLY = 1000000000 * (10 ** uint256(decimals));
-  
+  mapping (address => mapping (address => uint256)) internal EffectiveDateOfAllowance; // Effective date of Lost-proof, Inheritance
+
   /**
    * @dev Constructor that gives msg.sender all of existing tokens.
    */
@@ -458,8 +473,82 @@ contract TrustVerseToken is BurnableToken, StandardToken {
     balances[msg.sender] = INITIAL_SUPPLY;
     emit Transfer(0x0, msg.sender, INITIAL_SUPPLY);
   }
-}
 
+  /**
+   * @dev Transfer tokens to multiple addresses
+   * @param _to array of address The address which you want to transfer to
+   * @param _value array of uint256 the amount of tokens to be transferred
+   */
+  function transferToMultiAddress(address[] _to, uint256[] _value) public {
+    require(_to.length == _value.length);
+
+    uint256 transferTokenAmount = 0;
+    uint256 i = 0;
+    for (i = 0; i < _to.length; i++) {
+        transferTokenAmount = transferTokenAmount.add(_value[i]);
+    }
+    require(transferTokenAmount <= balances[msg.sender]);
+
+    for (i = 0; i < _to.length; i++) {
+        transfer(_to[i], _value[i]);
+    }
+  }
+
+  /**
+   * @dev Transfer tokens from one address to another
+   * @param _from address The address which you want to send tokens from
+   * @param _to address The address which you want to transfer to
+   * @param _value uint256 the amount of tokens to be transferred
+   */
+  function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
+    require(EffectiveDateOfAllowance[_from][msg.sender] <= block.timestamp); 
+    return super.transferFrom(_from, _to, _value);
+  }
+
+  /**
+   * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+   * @param _spender The address which will spend the funds.
+   * @param _value The amount of tokens to be spent.
+   * @param _effectiveDate Effective date of Lost-proof, Inheritance
+   */
+  function approveWithEffectiveDate(address _spender, uint256 _value, uint256 _effectiveDate) public returns (bool) {
+    require(isTokenReleased);
+    require(!blacklist[_spender]);
+	require(!blacklist[msg.sender]);
+    
+    EffectiveDateOfAllowance[msg.sender][_spender] = _effectiveDate;
+    return approve(_spender, _value);
+  }
+
+  /**
+   * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+   * @param _spender The address which will spend the funds.
+   * @param _value The amount of tokens to be spent.
+   * @param _effectiveDateInDays Effective date of Lost-proof, Inheritance
+   */
+  function approveWithEffectiveDateInDays(address _spender, uint256 _value, uint256 _effectiveDateInDays) public returns (bool) {
+    require(isTokenReleased);
+    require(!blacklist[_spender]);
+	require(!blacklist[msg.sender]);
+    
+    EffectiveDateOfAllowance[msg.sender][_spender] = SafeMath.add(block.timestamp, _effectiveDateInDays * 1 days);
+    return approve(_spender, _value);
+  }  
+
+  /**
+   * @dev Function to check the Effective date of Lost-proof, Inheritance of tokens that an owner allowed to a spender.
+   * @param _owner address The address which owns the funds.
+   * @param _spender address The address which will spend the funds.
+   * @return A uint256 specifying the amount of tokens still available for the spender.
+   */
+  function allowanceEffectiveDate(address _owner, address _spender) public view returns (uint256) {
+    require(!blacklist[_owner]);
+    require(!blacklist[_spender]);
+	require(!blacklist[msg.sender]);
+
+    return EffectiveDateOfAllowance[_owner][_spender];
+  }
+}
 
 contract PublicStageTV is Ownable {
     TrustVerseToken private TvsToken;
